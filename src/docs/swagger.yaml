@@ -1,0 +1,431 @@
+openapi: 3.0.3
+info:
+  title: Drip Store API
+  version: 1.0.0
+  description: |
+    API do e-commerce Drip Store (projeto Back-end - Geração Tech 4.0).
+
+    Rotas POST, PUT e DELETE (exceto cadastro e login de usuário) exigem o cabeçalho
+    `Authorization: Bearer <token>`. Gere o token em **POST /v1/user/token**.
+
+    Usuário de exemplo (após rodar o seeder): `admin@dripstore.com` / `123@123`
+servers:
+  - url: http://localhost:3000/v1
+tags:
+  - name: Usuários
+  - name: Categorias
+  - name: Produtos
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    limit:
+      name: limit
+      in: query
+      description: Itens por página. Use -1 para trazer todos.
+      schema: { type: integer, default: 12 }
+    page:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+  responses:
+    BadRequest:
+      description: Dados da requisição inválidos (ou cabeçalho Authorization ausente)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Token inválido ou expirado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoContent:
+      description: Operação realizada com sucesso (sem corpo)
+  schemas:
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+        details: { type: array, items: { type: string } }
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        firstname: { type: string, example: Maria }
+        surname: { type: string, example: Silva }
+        email: { type: string, example: maria@mail.com }
+    UserCreate:
+      type: object
+      required: [firstname, surname, email, password, confirmPassword]
+      properties:
+        firstname: { type: string, example: Maria }
+        surname: { type: string, example: Silva }
+        email: { type: string, example: maria@mail.com }
+        password: { type: string, example: '123@123' }
+        confirmPassword: { type: string, example: '123@123' }
+    UserUpdate:
+      type: object
+      required: [firstname, surname, email]
+      properties:
+        firstname: { type: string }
+        surname: { type: string }
+        email: { type: string }
+    Category:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Tênis }
+        slug: { type: string, example: tenis }
+        use_in_menu: { type: boolean, example: true }
+    CategoryInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string, example: Tênis }
+        slug: { type: string, example: tenis }
+        use_in_menu: { type: boolean, example: true }
+    ProductOption:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string, example: Tamanho }
+        shape: { type: string, enum: [square, circle] }
+        radius: { type: integer, example: 4 }
+        type: { type: string, enum: [text, color] }
+        values: { type: array, items: { type: string }, example: ['39', '40', '41'] }
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        enabled: { type: boolean }
+        name: { type: string }
+        slug: { type: string }
+        stock: { type: integer }
+        description: { type: string }
+        price: { type: number }
+        price_with_discount: { type: number }
+        category_ids: { type: array, items: { type: integer } }
+        images:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              content: { type: string, example: 'http://localhost:3000/uploads/products/abc.png' }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/ProductOption' }
+    ProductInput:
+      type: object
+      required: [name, slug, price, price_with_discount]
+      properties:
+        enabled: { type: boolean, example: true }
+        name: { type: string, example: Produto 01 }
+        slug: { type: string, example: produto-01 }
+        stock: { type: integer, example: 10 }
+        description: { type: string, example: Descrição do produto 01 }
+        price: { type: number, example: 119.9 }
+        price_with_discount: { type: number, example: 99.9 }
+        category_ids: { type: array, items: { type: integer }, example: [1, 2] }
+        images:
+          type: array
+          description: |
+            No cadastro: { type, content (base64) }.
+            Na atualização também aceita { id, deleted: true } para remover
+            e { id, content } para trocar (base64) ou manter (URL).
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              type: { type: string, example: image/png }
+              content: { type: string, example: iVBORw0KGgo... }
+              deleted: { type: boolean }
+        options:
+          type: array
+          description: Na atualização, { id, deleted: true } remove a opção e { id, ...campos } altera.
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              title: { type: string, example: Tamanho }
+              shape: { type: string, enum: [square, circle] }
+              radius: { type: string, example: 4px }
+              type: { type: string, enum: [text, color] }
+              values: { type: array, items: { type: string }, example: ['P', 'M', 'G'] }
+              deleted: { type: boolean }
+    ListMeta:
+      type: object
+      properties:
+        total: { type: integer }
+        limit: { type: integer }
+        page: { type: integer }
+
+paths:
+  /user/token:
+    post:
+      tags: [Usuários]
+      summary: Gera o token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, example: admin@dripstore.com }
+                password: { type: string, example: '123@123' }
+      responses:
+        '200':
+          description: Token gerado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /user:
+    post:
+      tags: [Usuários]
+      summary: Cadastra um usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreate' }
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /user/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Usuários]
+      summary: Busca um usuário pelo ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Usuários]
+      summary: Atualiza um usuário
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdate' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Usuários]
+      summary: Remove um usuário
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /category/search:
+    get:
+      tags: [Categorias]
+      summary: Lista categorias
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/page'
+        - name: fields
+          in: query
+          description: Campos a retornar, separados por vírgula
+          schema: { type: string, example: 'name,slug' }
+        - name: use_in_menu
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Category' } }
+                  - $ref: '#/components/schemas/ListMeta'
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /category:
+    post:
+      tags: [Categorias]
+      summary: Cadastra uma categoria
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Categoria criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /category/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Categorias]
+      summary: Busca uma categoria pelo ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Categorias]
+      summary: Atualiza uma categoria
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Categorias]
+      summary: Remove uma categoria
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /product/search:
+    get:
+      tags: [Produtos]
+      summary: Lista produtos com filtros
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/page'
+        - name: fields
+          in: query
+          schema: { type: string, example: 'name,images,price' }
+        - name: match
+          in: query
+          description: Termo buscado no nome ou na descrição
+          schema: { type: string, example: Nike }
+        - name: category_ids
+          in: query
+          schema: { type: string, example: '1,2' }
+        - name: price-range
+          in: query
+          schema: { type: string, example: '100-300' }
+        - name: option
+          in: query
+          style: deepObject
+          explode: true
+          description: 'Filtro por opção. Ex.: option[1]=40,41'
+          schema:
+            type: object
+            additionalProperties: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Product' } }
+                  - $ref: '#/components/schemas/ListMeta'
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /product:
+    post:
+      tags: [Produtos]
+      summary: Cadastra um produto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '201':
+          description: Produto criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /product/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Produtos]
+      summary: Busca um produto pelo ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Produtos]
+      summary: Atualiza um produto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Produtos]
+      summary: Remove um produto
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }

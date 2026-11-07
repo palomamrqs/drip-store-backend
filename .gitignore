@@ -1,0 +1,7 @@
+node_modules/
+.env
+coverage/
+# Imagens enviadas pela API (as imagens de exemplo do seeder ficam versionadas)
+uploads/products/*
+!uploads/products/product-thumb-*.jpeg
+!uploads/products/produc-image-*.jpeg
